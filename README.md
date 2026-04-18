@@ -98,6 +98,20 @@ Runtime **system** strings for chat/expansion are in **`src/services/chatActions
 
 ---
 
+## Context window, models, and latency rationale
+
+- **Context window (lines)**: defaults to a *recent* slice of the transcript (configurable in Settings). This keeps latency low and relevance high, while still letting the user ask global questions in chat (which uses the full transcript).
+- **Whisper chunking (~30s)**: chosen because it gives fast updates while keeping each segment “complete enough” for reliable STT and limiting request overhead.
+- **Model choice**:
+  - **STT**: `whisper-large-v3` for accuracy on noisy meetings.
+  - **LLM**: defaults to `openai/gpt-oss-120b` (largest OSS option on Groq where available), with automatic fallback to `meta-llama/llama-3.3-70b-versatile`.
+- **Structured JSON for suggestions**: suggestions requests use Groq/OpenAI-compatible **`response_format: json_object`** when supported to maximize reliability (no truncated / non-JSON responses). If the API rejects structured mode, the client retries once without it.
+- **Why these choices help latency**:
+  - Suggestions are generated from a **short excerpt** (context window) and a **small output** (3 cards).
+  - Suggestion generation calls are **serialized** so the UI doesn’t freeze or race during rapid updates.
+
+---
+
 ## Audio pipeline (important)
 
 `MediaRecorder.start(timeslice)` produces **fragments** that are **not** always valid standalone WebM files for Whisper. This app uses **segmented recording**: each **~30s** window is `start()` → collect chunks → `stop()` → one **Blob** → transcribe. That avoids Groq **“valid media file”** errors on later segments.
@@ -110,32 +124,31 @@ Runtime **system** strings for chat/expansion are in **`src/services/chatActions
 
 ---
 
-## Git: init, commit, push
-
-```bash
-cd "/path/to/TwinMindAssignment"
-git init
-git add .
-git commit -m "Initial commit: TwinMind Live Suggestions"
-```
-
-**Push to GitHub** (create an empty repo on GitHub first, then):
-
-```bash
-git branch -M main
-git remote add origin https://github.com/YOUR_USER/YOUR_REPO.git
-git push -u origin main
-```
-
-Or with **GitHub CLI** (logged in): `gh repo create twinmind-live-suggestions --public --source=. --remote=origin --push`
-
----
-
 ## Troubleshooting
 
-- **STT errors** — Ensure each segment is non-trivial; check Groq dashboard / key / quotas. Banner shows Groq error text when possible.  
-- **Invalid JSON on suggestions** — Parser accepts `{"suggestions":[...]}` or a raw array; `max_tokens` is high enough to avoid truncation. Reset prompts if you edited them and broke the JSON contract.  
-- **Cursor “not logged in”** — That is an **IDE authentication** issue (Cursor account), not this repo.
+- **STT: “could not process file — valid media file?”**  
+  - **Cause**: `MediaRecorder.start(timeslice)` yields WebM continuation fragments that are not valid standalone uploads.  
+  - **Fix in this app**: record in **~30s segments** by `start()` → buffer → `stop()` and upload **one complete Blob** per segment (`src/hooks/useMeetingRecorder.ts`).
+
+- **Transcription updates once, then stops**  
+  - **Cause**: later STT segments failed (invalid media), so no new transcript lines were appended.  
+  - **Fix**: same segmented recorder; failures show as a banner instead of silently stalling.
+
+- **Suggestions: “Model output was not valid JSON” / “Could not find JSON array”**  
+  - **Cause**: model output truncated mid-JSON (too-small `max_tokens`) or returned prose/markdown.  
+  - **Fix in this app**: structured output using **`response_format: json_object`** (when supported), larger token budget, and a parser that accepts either `{"suggestions":[...]}` or a raw array (`src/lib/suggestionParser.ts`).
+
+- **Chat responses include markdown (`**bold**`, headings, etc.)**  
+  - **Cause**: models default to markdown formatting.  
+  - **Fix**: system + prompt constraints enforce **plain text** only (`src/services/chatActions.ts`, `src/lib/defaults.ts`).
+
+- **CORS / browser fetch to Groq fails**  
+  - **Cause**: Groq endpoints are not intended for direct browser calls.  
+  - **Fix**: same-origin proxy routes (`src/app/api/groq/*`) forward requests server-side.
+
+- **Cursor “not logged in”**  
+  - **Cause**: Cursor IDE authentication/session issue, unrelated to the app runtime.  
+  - **Fix**: log out/in inside Cursor or use terminal Git credentials.
 
 ---
 
