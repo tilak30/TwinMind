@@ -30,8 +30,10 @@ export interface TwinMindSettings {
   liveSuggestionPrompt: string;
   expandedAnswerPrompt: string;
   chatPrompt: string;
-  /** Last N transcript lines sent as context to the LLM */
+  /** Last N transcript lines sent as context to the live suggestion LLM (0 = all lines) */
   contextWindowLines: number;
+  /** Last N transcript lines sent as context to the expansion/chat LLM (0 = full transcript) */
+  contextWindowLinesExpansion: number;
 }
 
 interface TwinMindState extends TwinMindSettings {
@@ -64,6 +66,8 @@ const defaultSettings = (): TwinMindSettings => ({
   expandedAnswerPrompt: DEFAULT_EXPANDED_ANSWER_PROMPT,
   chatPrompt: DEFAULT_CHAT_PROMPT,
   contextWindowLines: DEFAULT_CONTEXT_WINDOW_LINES,
+  /** 0 = use full transcript for expansion/chat (recommended: more context = better answers) */
+  contextWindowLinesExpansion: 0,
 });
 
 export const useTwinMindStore = create<TwinMindState>((set) => ({
@@ -88,6 +92,7 @@ export const useTwinMindStore = create<TwinMindState>((set) => ({
       expandedAnswerPrompt: DEFAULT_EXPANDED_ANSWER_PROMPT,
       chatPrompt: DEFAULT_CHAT_PROMPT,
       contextWindowLines: DEFAULT_CONTEXT_WINDOW_LINES,
+      contextWindowLinesExpansion: 0,
     })),
   dismissSessionError: () => set({ sessionError: null }),
   appendTranscriptChunk: (chunk) =>

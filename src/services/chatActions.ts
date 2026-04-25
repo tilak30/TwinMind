@@ -16,6 +16,7 @@
 
 import { groqChatCompletion } from "@/lib/groqClient";
 import { formatFullTranscript } from "@/lib/transcriptFormat";
+import { buildTranscriptSnippet } from "@/lib/transcriptFormat";
 import { suggestionUserTag } from "@/lib/suggestionLabels";
 import type { SuggestionCard } from "@/types";
 import { useTwinMindStore } from "@/store/useTwinMindStore";
@@ -164,11 +165,15 @@ export async function sendDirectChatMessage(userMessage: string): Promise<void> 
 
   try {
     const s = useTwinMindStore.getState();
-    const full = formatFullTranscript(s.transcript);
+    // Use the expansion context window setting; 0 means full transcript.
+    const transcript =
+      s.contextWindowLinesExpansion > 0
+        ? buildTranscriptSnippet(s.transcript, s.contextWindowLinesExpansion)
+        : formatFullTranscript(s.transcript);
 
     // Inject full transcript and user question into the prompt template.
     const prompt = s.chatPrompt
-      .replaceAll("{FULL_TRANSCRIPT}", full)
+      .replaceAll("{FULL_TRANSCRIPT}", transcript)
       .replaceAll("{USER_MESSAGE}", trimmed);
 
     const reply = await groqChatCompletion(
@@ -222,13 +227,17 @@ export async function expandSuggestionToChat(card: SuggestionCard): Promise<void
 
   try {
     const s = useTwinMindStore.getState();
-    const full = formatFullTranscript(s.transcript);
+    // Use the expansion context window setting; 0 means full transcript.
+    const transcript =
+      s.contextWindowLinesExpansion > 0
+        ? buildTranscriptSnippet(s.transcript, s.contextWindowLinesExpansion)
+        : formatFullTranscript(s.transcript);
 
     // Template placeholders: suggestion text, hidden analyst notes, full transcript.
     const prompt = s.expandedAnswerPrompt
       .replaceAll("{SUGGESTION_TEXT}", card.preview_text)
       .replaceAll("{HIDDEN_CONTEXT}", card.hidden_context)
-      .replaceAll("{FULL_TRANSCRIPT}", full);
+      .replaceAll("{FULL_TRANSCRIPT}", transcript);
 
     const reply = await groqChatCompletion(
       s.groqApiKey,

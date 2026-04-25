@@ -18,6 +18,7 @@ export function SettingsModal() {
   const expandedAnswerPrompt = useTwinMindStore((s) => s.expandedAnswerPrompt);
   const chatPrompt = useTwinMindStore((s) => s.chatPrompt);
   const contextWindowLines = useTwinMindStore((s) => s.contextWindowLines);
+  const contextWindowLinesExpansion = useTwinMindStore((s) => s.contextWindowLinesExpansion);
 
   useEffect(() => {
     if (!settingsOpen) return;
@@ -80,7 +81,7 @@ export function SettingsModal() {
           </label>
 
           <label className="flex flex-col gap-2">
-            <span className="text-sm font-medium text-slate-200">Context window (transcript lines)</span>
+            <span className="text-sm font-medium text-slate-200">Context window — live suggestions (lines)</span>
             <input
               type="number"
               min={5}
@@ -92,7 +93,24 @@ export function SettingsModal() {
               className="w-32 rounded-lg border border-surface-border bg-surface px-3 py-2 text-sm text-white outline-none ring-accent/40 focus:ring-2"
             />
             <span className="text-xs text-slate-500">
-              Last N completed transcript lines included when calling the LLM.
+              Last N transcript lines fed to the suggestion LLM. Default: 48.
+            </span>
+          </label>
+
+          <label className="flex flex-col gap-2">
+            <span className="text-sm font-medium text-slate-200">Context window — expanded answers &amp; chat (lines)</span>
+            <input
+              type="number"
+              min={0}
+              max={500}
+              value={contextWindowLinesExpansion}
+              onChange={(e) =>
+                patchSettings({ contextWindowLinesExpansion: Math.max(0, Number(e.target.value) || 0) })
+              }
+              className="w-32 rounded-lg border border-surface-border bg-surface px-3 py-2 text-sm text-white outline-none ring-accent/40 focus:ring-2"
+            />
+            <span className="text-xs text-slate-500">
+              Last N transcript lines sent when expanding a card or chatting. 0 = full transcript (recommended).
             </span>
           </label>
 
