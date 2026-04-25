@@ -1,3 +1,11 @@
+/**
+ * suggestionLabels.ts
+ *
+ * Pure display-layer helpers for suggestion card types.
+ * Centralises all label text and colour decisions so the UI
+ * never hard-codes them across multiple components.
+ */
+
 import type { SuggestionType } from "@/types";
 
 /** Short label shown on suggestion cards (mockup-style). */

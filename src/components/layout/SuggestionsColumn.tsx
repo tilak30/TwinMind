@@ -1,3 +1,23 @@
+/**
+ * SuggestionsColumn.tsx
+ *
+ * Middle column of the TwinMind UI. Renders suggestion batches and manages
+ * the 30-second auto-refresh timer.
+ *
+ * Auto-refresh behaviour:
+ *   - A countdown timer resets to 30s whenever a new batch is prepended.
+ *   - When the timer hits 0 and recording is active, scheduleSuggestionRefresh
+ *     is called with "transcript" (no recorder flush — avoids disrupting the
+ *     audio segmentation cycle).
+ *   - Manual "Reload suggestions" always uses the "manual" trigger, which
+ *     flushes the currently open recorder segment first.
+ *   - Timer and auto-refresh pause when recording is stopped.
+ *
+ * Rendering:
+ *   - Newest batch appears at the top; older batches are progressively dimmed.
+ *   - Each suggestion card is a tappable button that calls expandSuggestionToChat.
+ */
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -12,6 +32,7 @@ export function SuggestionsColumn() {
   const batches = useTwinMindStore((s) => s.suggestionBatches);
   const suggestionsBusy = useTwinMindStore((s) => s.suggestionsBusy);
   const chatBusy = useTwinMindStore((s) => s.chatBusy);
+  const recordingActive = useTwinMindStore((s) => s.recordingActive);
   const topBatchId = batches[0]?.id ?? "none";
   const [secondsLeft, setSecondsLeft] = useState(AUTO_REFRESH_SECONDS);
 
@@ -23,10 +44,11 @@ export function SuggestionsColumn() {
           const st = useTwinMindStore.getState();
           const canRun =
             !!st.groqApiKey.trim() &&
+            st.recordingActive &&
             !st.suggestionsBusy &&
             (st.suggestionBatches.length > 0 || st.transcript.length > 0);
           if (canRun) {
-            void scheduleSuggestionRefresh("manual");
+            void scheduleSuggestionRefresh("transcript");
           }
           return AUTO_REFRESH_SECONDS;
         }
@@ -61,7 +83,13 @@ export function SuggestionsColumn() {
           Reload suggestions
         </button>
         <p className="text-[11px] text-slate-500">
-          auto-refresh in <span className="font-mono text-slate-300">{secondsLeft}s</span>
+          {recordingActive ? (
+            <>
+              auto-refresh in <span className="font-mono text-slate-300">{secondsLeft}s</span>
+            </>
+          ) : (
+            <span className="text-amber-300/90">auto-refresh paused (recorder stopped)</span>
+          )}
         </p>
       </div>
 

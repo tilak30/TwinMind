@@ -29,6 +29,21 @@ yarn-error.log*
 
 # env files
 .env*.local
+.env
+.env.*
+!.env.example
 
 # typescript
 *.tsbuildinfo
+
+# IDE / tooling
+.idea/
+.vscode/
+.cursor/
+
+# local deployment artifacts
+.vercel/
+
+# logs
+*.log
+.vercel

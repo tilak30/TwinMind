@@ -1,3 +1,25 @@
+/**
+ * suggestionParser.ts
+ *
+ * Robust parser that converts raw LLM output into exactly 3 SuggestionCards.
+ * The parser is intentionally lenient because models sometimes:
+ *   - Wrap JSON in markdown fences (```json ... ```).
+ *   - Use curly/smart quotes instead of straight quotes.
+ *   - Return an object { suggestions: [...] } instead of a bare array.
+ *   - Emit unescaped double-quotes inside string values.
+ *   - Include trailing commas in arrays/objects.
+ *
+ * Parsing pipeline:
+ *   1. stripMarkdownFences  — removes ``` fences (up to 6 nested passes).
+ *   2. normalizeJsonQuotes  — replaces typographic quotes with ASCII.
+ *   3. tryParseLenient      — JSON.parse → repair field quotes → strip trailing commas.
+ *   4. extractBalancedJson* — brace/bracket depth scan as a last resort.
+ *   5. rowsFromParsed       — extracts the array from { suggestions } or { items } wrappers.
+ *   6. Card normalisation   — coerces type, truncates fields to UI-safe lengths.
+ *
+ * Throws if fewer than 3 cards can be produced (caller shows an error banner).
+ */
+
 import type { SuggestionCard, SuggestionType } from "@/types";
 
 const ALLOWED: SuggestionType[] = [
@@ -137,9 +159,38 @@ function tryParseLenient(slice: string): unknown {
   try {
     return JSON.parse(normalized) as unknown;
   } catch {
-    const noTrail = normalized.replace(/,(?=\s*[\]\}])/g, "");
-    return JSON.parse(noTrail) as unknown;
+    const repaired = repairLikelyUnescapedFieldQuotes(normalized);
+    try {
+      return JSON.parse(repaired) as unknown;
+    } catch {
+      const noTrail = repaired.replace(/,(?=\s*[\]\}])/g, "");
+      return JSON.parse(noTrail) as unknown;
+    }
   }
+}
+
+/**
+ * Some models emit invalid JSON by placing unescaped double-quotes inside
+ * preview_text/hidden_context values. We repair that pattern by escaping
+ * interior quotes while preserving the field-closing quote.
+ */
+function repairLikelyUnescapedFieldQuotes(input: string): string {
+  const fields = ["preview_text", "hidden_context"] as const;
+  let out = input;
+
+  for (const field of fields) {
+    const rx = new RegExp(
+      `("${field}"\\s*:\\s*")([\\s\\S]*?)"(?=\\s*,\\s*"(?:type|preview_text|hidden_context)"\\s*:|\\s*\\}|\\s*\\])`,
+      "g",
+    );
+    out = out.replace(rx, (_whole, prefix: string, rawValue: string) => {
+      // Escape only unescaped quotes inside the value body.
+      const escaped = rawValue.replace(/(?<!\\)"/g, '\\"');
+      return `${prefix}${escaped}"`;
+    });
+  }
+
+  return out;
 }
 
 function rowsFromParsed(parsed: unknown): unknown[] {

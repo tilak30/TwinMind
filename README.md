@@ -2,6 +2,9 @@
 
 A production-style **Next.js (App Router)** web app that acts as an **always-on meeting copilot**: live microphone capture, **Groq Whisper** transcription in **~30 second segments**, **Groq LLM** “live suggestion” cards (three per batch), and a **session-only chat** for deeper answers. State lives in **memory** (Zustand); nothing is persisted to `localStorage` unless you export.
 
+Technical architecture and runtime flow details: [`docs/TECHNICAL_ARCHITECTURE.md`](docs/TECHNICAL_ARCHITECTURE.md)
+Live output test report and improvement plan: [`docs/SUGGESTION_AND_SUMMARY_EVALUATION.md`](docs/SUGGESTION_AND_SUMMARY_EVALUATION.md)
+
 ---
 
 ## Features
@@ -9,7 +12,7 @@ A production-style **Next.js (App Router)** web app that acts as an **always-on 
 | Area | What it does |
 |------|----------------|
 | **Column 1 — Mic & transcript** | Round **play/pause** control, **~30s** complete WebM segments (stop/restart recorder so each file is valid for STT), timestamps per line, **Export** JSON. |
-| **Column 2 — Live suggestions** | Batches of **3** cards, **newest first**, older batches **dimmed**. **Color-coded** types (question, fact_check, answer, talking_point, clarify). **Reload** + **30s auto-refresh** timer. |
+| **Column 2 — Live suggestions** | Batches of **3** cards, **newest first**, older batches **dimmed**. **Color-coded** types (question, fact_check, answer, talking_point, clarify). Suggestions are generated from two paths only: after transcribed recording text, or manual refresh. Manual refresh flushes in-progress audio first so latest speech is included. |
 | **Column 3 — Chat** | **YOU** / **ASSISTANT** labels; suggestion expansions show a **type tag** (e.g. FACT-CHECK). Plain-text replies (no markdown in UI). |
 | **Settings** | Groq API key (memory only), editable prompts, context window (lines). **Reset prompts** keeps your key. |
 | **API proxy** | Same-origin `/api/groq/*` routes forward to Groq (avoids browser CORS). |
@@ -95,6 +98,7 @@ All defaults live in **`src/lib/defaults.ts`** and are editable in **Settings**.
 3. **Chat** — User questions about the meeting; same **faithfulness** rules and plain-text sections.
 
 Runtime **system** strings for chat/expansion are in **`src/services/chatActions.ts`** (reinforces no markdown).
+Chat/expansion replies are also normalized at runtime to remove markdown artifacts, enforce section headers, and guarantee a `Say this:` line for expansions.
 
 ---
 
@@ -115,6 +119,8 @@ Runtime **system** strings for chat/expansion are in **`src/services/chatActions
 ## Audio pipeline (important)
 
 `MediaRecorder.start(timeslice)` produces **fragments** that are **not** always valid standalone WebM files for Whisper. This app uses **segmented recording**: each **~30s** window is `start()` → collect chunks → `stop()` → one **Blob** → transcribe. That avoids Groq **“valid media file”** errors on later segments.
+
+If you manually refresh suggestions while recording, the app flushes the current open segment first, transcribes it, then generates suggestions once. This makes "Get suggestions now" include the latest spoken content.
 
 ---
 

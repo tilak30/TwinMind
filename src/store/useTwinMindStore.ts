@@ -1,3 +1,21 @@
+/**
+ * useTwinMindStore.ts
+ *
+ * Central Zustand store — the single source of truth for all runtime state.
+ * State is kept entirely in memory; there is no persistence between page reloads
+ * by design (no login, no data persistence per spec).
+ *
+ * Key state slices:
+ *   - settings:         groqApiKey, prompt templates, contextWindowLines
+ *   - transcript:       chronological TranscriptChunk array
+ *   - suggestionBatches: newest-first SuggestionBatch array
+ *   - chatMessages:     flat append-only ChatMessage array
+ *   - busy flags:       suggestionsBusy, chatBusy, recordingActive
+ *   - flushRecorderSegment: callback registered by useMeetingRecorder so the
+ *                       suggestion engine can flush the open audio segment before
+ *                       a manual reload without creating a circular dependency.
+ */
+
 import { create } from "zustand";
 import type { ChatMessage, SuggestionBatch, TranscriptChunk } from "@/types";
 import {
@@ -18,6 +36,9 @@ export interface TwinMindSettings {
 
 interface TwinMindState extends TwinMindSettings {
   settingsOpen: boolean;
+  recordingActive: boolean;
+  /** Recorder-provided callback used to flush in-progress audio before manual refresh. */
+  flushRecorderSegment: null | (() => Promise<void>);
   transcript: TranscriptChunk[];
   suggestionBatches: SuggestionBatch[];
   chatMessages: ChatMessage[];
@@ -25,6 +46,8 @@ interface TwinMindState extends TwinMindSettings {
   chatBusy: boolean;
   sessionError: string | null;
   setSettingsOpen: (open: boolean) => void;
+  setRecordingActive: (active: boolean) => void;
+  setFlushRecorderSegment: (fn: null | (() => Promise<void>)) => void;
   patchSettings: (partial: Partial<TwinMindSettings>) => void;
   /** Resets prompt templates and context size; preserves API key */
   resetSettingsToDefaults: () => void;
@@ -46,6 +69,8 @@ const defaultSettings = (): TwinMindSettings => ({
 export const useTwinMindStore = create<TwinMindState>((set) => ({
   ...defaultSettings(),
   settingsOpen: false,
+  recordingActive: false,
+  flushRecorderSegment: null,
   transcript: [],
   suggestionBatches: [],
   chatMessages: [],
@@ -53,6 +78,8 @@ export const useTwinMindStore = create<TwinMindState>((set) => ({
   chatBusy: false,
   sessionError: null,
   setSettingsOpen: (open) => set({ settingsOpen: open }),
+  setRecordingActive: (active) => set({ recordingActive: active }),
+  setFlushRecorderSegment: (fn) => set({ flushRecorderSegment: fn }),
   patchSettings: (partial) => set((s) => ({ ...s, ...partial })),
   resetSettingsToDefaults: () =>
     set((s) => ({

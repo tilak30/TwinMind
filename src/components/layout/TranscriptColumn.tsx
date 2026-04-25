@@ -1,3 +1,16 @@
+/**
+ * TranscriptColumn.tsx
+ *
+ * Left column of the TwinMind UI. Owns the microphone start/stop button
+ * and displays the rolling transcript produced by useMeetingRecorder.
+ *
+ * Responsibilities:
+ *   - Start/stop mic recording via useMeetingRecorder (mic source only).
+ *   - Auto-scroll to the latest transcript line whenever a new chunk arrives.
+ *   - Show a LIVE / TRANSCRIBING / IDLE status badge.
+ *   - Export the full session (transcript + batches + chat) as a JSON file.
+ */
+
 "use client";
 
 import { useEffect, useRef } from "react";
@@ -42,7 +55,7 @@ export function TranscriptColumn() {
       <div className="flex shrink-0 items-center gap-3 border-b border-white/10 bg-[#0f1419] px-3 py-3">
         <button
           type="button"
-          onClick={() => (isRecording ? stop() : void start())}
+          onClick={() => (isRecording ? stop() : void start("mic"))}
           className={`relative flex h-14 w-14 shrink-0 items-center justify-center rounded-full border-2 transition ${
             isRecording
               ? "border-rose-400/80 bg-rose-600 text-white shadow-lg shadow-rose-900/40"
@@ -50,14 +63,14 @@ export function TranscriptColumn() {
           }`}
           aria-label={isRecording ? "Stop microphone" : "Start microphone"}
         >
-          {isRecording ? <PauseGlyph className="h-6 w-6" /> : <PlayGlyph className="ml-0.5 h-6 w-6" />}
+          {isRecording ? <PauseGlyph className="h-6 w-6" /> : <MicGlyph className="h-6 w-6" />}
         </button>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-white">
-            {isRecording ? "Listening…" : "Stopped. Click to resume."}
+            {isRecording ? "Listening…" : "Stopped. Click to start."}
           </p>
           <p className="mt-0.5 text-[11px] text-slate-500">
-            ~30s segments → Whisper. Export includes this column.
+            ~30s segments → Whisper transcription
           </p>
         </div>
         <button
@@ -107,10 +120,11 @@ function EmptyState({ title, body }: { title: string; body: string }) {
   );
 }
 
-function PlayGlyph({ className }: { className?: string }) {
+
+function MicGlyph({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-      <path d="M8 5v14l11-7z" />
+      <path d="M12 1a4 4 0 0 1 4 4v6a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4zm-1 18.93V22h2v-2.07A8.001 8.001 0 0 0 20 12h-2a6 6 0 0 1-12 0H4a8.001 8.001 0 0 0 7 7.93z" />
     </svg>
   );
 }
